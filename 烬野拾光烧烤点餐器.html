@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>烬野拾光 · 微信点单</title>
+<style>
+  :root{
+    --red:#b3202c; --red-dark:#8e1620; --red-soft:#fbeaea;
+    --ink:#2b2320; --muted:#8a7d76; --bg:#faf6f1; --card:#ffffff;
+    --gold:#d9a441;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:110px}
+  header{
+    background:linear-gradient(135deg,var(--red) 0%,var(--red-dark) 100%);
+    color:#fff;padding:22px 16px 18px;text-align:center;position:relative;overflow:hidden;
+  }
+  header::after{content:"🍢";position:absolute;font-size:90px;opacity:.12;right:-10px;top:-20px;transform:rotate(15deg)}
+  header h1{font-size:26px;letter-spacing:6px;font-weight:800}
+  header p{font-size:12px;opacity:.85;margin-top:6px;letter-spacing:2px}
+  /* 分类导航 */
+  nav{
+    position:sticky;top:0;z-index:20;background:rgba(250,246,241,.96);backdrop-filter:blur(6px);
+    display:flex;gap:8px;overflow-x:auto;padding:10px 12px;border-bottom:1px solid #eee0d5;
+    scrollbar-width:none;
+  }
+  nav::-webkit-scrollbar{display:none}
+  nav button{
+    flex:0 0 auto;border:1px solid #e5d5c8;background:#fff;color:var(--ink);
+    border-radius:999px;padding:7px 16px;font-size:14px;cursor:pointer;transition:.2s;white-space:nowrap;
+  }
+  nav button.active{background:var(--red);border-color:var(--red);color:#fff;font-weight:700}
+  /* 分区标题 */
+  section{padding:6px 14px 0}
+  .cat-title{
+    display:flex;align-items:center;gap:10px;margin:16px 0 12px;
+    color:var(--red);font-size:18px;font-weight:800;letter-spacing:3px;
+  }
+  .cat-title::before,.cat-title::after{content:"";height:2px;background:linear-gradient(90deg,transparent,var(--red));flex:1}
+  .cat-title::after{background:linear-gradient(90deg,var(--red),transparent)}
+  /* 商品卡片 */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+  .card{
+    background:var(--card);border-radius:14px;overflow:hidden;
+    box-shadow:0 2px 8px rgba(80,40,20,.07);display:flex;flex-direction:column;transition:transform .15s;
+  }
+  .card:active{transform:scale(.98)}
+  .info{padding:12px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .name{font-size:15px;font-weight:700}
+  .note{font-size:11px;color:var(--muted)}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-top:auto}
+  .price{color:var(--red);font-weight:800;font-size:16px;cursor:text;border-bottom:1px dashed transparent;padding:1px 2px;border-radius:4px}
+  .price:hover{background:var(--red-soft);border-bottom-color:var(--red)}
+  .price small{font-size:11px;font-weight:400;color:var(--muted)}
+  .price input{width:56px;font-size:15px;font-weight:800;color:var(--red);border:1px solid var(--red);border-radius:6px;padding:2px 4px;text-align:center}
+  /* 步进器 */
+  .stepper{display:flex;align-items:center;gap:8px}
+  .stepper button{
+    width:26px;height:26px;border-radius:50%;border:none;cursor:pointer;font-size:16px;line-height:1;
+    background:var(--red);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;
+  }
+  .stepper button.minus{background:#efe6dd;color:var(--ink)}
+  .stepper button.minus:disabled{opacity:.35;cursor:default}
+  .qty{min-width:18px;text-align:center;font-weight:700;font-size:15px}
+  /* 底部结算栏 */
+  .cartbar{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;
+    box-shadow:0 -4px 18px rgba(0,0,0,.12);padding:12px 16px;
+    display:flex;align-items:center;gap:12px;
+  }
+  .cart-info{flex:1}
+  .cart-info .total{font-size:20px;font-weight:800;color:var(--red)}
+  .cart-info .count{font-size:12px;color:var(--muted)}
+  .btn{
+    border:none;border-radius:999px;padding:12px 22px;font-size:15px;font-weight:700;cursor:pointer;
+  }
+  .btn-primary{background:var(--red);color:#fff}
+  .btn-primary:disabled{background:#d8c9c0;cursor:default}
+  .btn-ghost{background:#f3ece5;color:var(--ink)}
+  /* 弹窗 */
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:40;display:none;align-items:flex-end;justify-content:center}
+  .mask.show{display:flex}
+  .sheet{
+    background:#fff;width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:20px;max-height:80vh;overflow:auto;
+    animation:up .25s ease;
+  }
+  @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+  .sheet h3{font-size:17px;margin-bottom:12px;color:var(--red)}
+  .order-text{
+    background:#faf5ef;border:1px dashed #e0cdb9;border-radius:10px;padding:14px;
+    font-size:14px;line-height:1.9;white-space:pre-wrap;word-break:break-all;margin-bottom:14px;
+  }
+  .sheet .actions{display:flex;gap:10px}
+  .sheet .actions .btn{flex:1}
+  .tools{display:flex;justify-content:flex-end;gap:14px;padding:10px 16px 0;font-size:12px;color:var(--muted)}
+  .tools a{cursor:pointer;text-decoration:underline}
+  .toast{
+    position:fixed;top:18%;left:50%;transform:translateX(-50%);background:rgba(40,25,20,.92);color:#fff;
+    padding:10px 22px;border-radius:999px;font-size:14px;z-index:60;display:none;
+  }
+  .tip{font-size:11px;color:var(--muted);text-align:center;padding:14px 16px 4px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>烬 野 拾 光</h1>
+  <p>烧 烤 界 万 物 皆 可 盘 · 微 信 群 点 单</p>
+</header>
+
+<nav id="catNav"></nav>
+<main id="menu"></main>
+
+<p class="tip">💡 老板改价小贴士：直接点击商品上的价格数字即可修改，修改会自动保存</p>
+<div class="tools">
+  <a id="resetPrices">恢复默认价格</a>
+  <a id="clearCart">清空已选</a>
+</div>
+
+<div class="cartbar">
+  <div class="cart-info">
+    <div class="total" id="totalPrice">¥0</div>
+    <div class="count" id="totalCount">还未选择商品</div>
+  </div>
+  <button class="btn btn-ghost" id="clearBtn">清空</button>
+  <button class="btn btn-primary" id="genBtn" disabled>生成点单文字</button>
+</div>
+
+<div class="mask" id="mask">
+  <div class="sheet">
+    <h3>📋 点单文字（复制后发到微信群）</h3>
+    <div class="order-text" id="orderText"></div>
+    <div id="sheetTotal" style="font-size:13px;color:var(--red);font-weight:700;margin:-6px 0 14px"></div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="closeSheet">继续加点</button>
+      <button class="btn btn-primary" id="copyBtn">一键复制</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 菜单数据（老板改这里：默认价格 / 单位 / 备注） ================= */
+const CATEGORIES = [
+  { id:"chuan",   name:"特色串串",   emoji:"🍢" },
+  { id:"veg",     name:"青青草原系列", emoji:"🥬" },
+  { id:"seafood", name:"海鲜系列",   emoji:"🦪" },
+  { id:"tieban",  name:"铁板系列",   emoji:"🍳" },
+  { id:"xizhi",   name:"锡纸系列",   emoji:"🍜" },
+  { id:"drink",   name:"酒水系列",   emoji:"🍺" },
+];
+/* name, 默认价, 单位, 备注, 图片id, emoji兜底 */
+const MENU = [
+  // 特色串串
+  {cat:"chuan", id:"kaowuhua",    name:"烤五花",     price:10, unit:"份", note:"12串",   img:"kaowuhua",    emoji:"🥓"},
+  {cat:"chuan", id:"niurou",      name:"鲜切牛肉",   price:10, unit:"份", note:"6串",    img:"niurou",      emoji:"🥩"},
+  {cat:"chuan", id:"yangrouchuan",name:"羊肉串",     price:10, unit:"份", note:"5串",    img:"yangrouchuan",emoji:"🍢"},
+  {cat:"chuan", id:"niuleitiao",  name:"牛肋条",     price:8,  unit:"串", note:"",       img:"niuleitiao",  emoji:"🍖"},
+  {cat:"chuan", id:"shangnao",    name:"上脑牛肉",   price:10, unit:"串", note:"53克以上",img:"shangnao",    emoji:"🥩"},
+  {cat:"chuan", id:"koumo",       name:"口蘑虾滑",   price:5,  unit:"串", note:"2个",    img:"koumo",       emoji:"🍄"},
+  {cat:"chuan", id:"zhongchi",    name:"中翅",       price:10, unit:"串", note:"2个",    img:"zhongchi",    emoji:"🍗"},
+  {cat:"chuan", id:"chijian",     name:"翅尖",       price:2,  unit:"串", note:"",       img:"chijian",     emoji:"🍗"},
+  {cat:"chuan", id:"jixin",       name:"鸡心",       price:3,  unit:"串", note:"",       img:"jixin",       emoji:"🍢"},
+  {cat:"chuan", id:"kaorouchang", name:"烤肉肠",     price:5,  unit:"串", note:"",       img:"kaorouchang", emoji:"🌭"},
+  {cat:"chuan", id:"dianfenchang",name:"淀粉肠",     price:3,  unit:"串", note:"",       img:"dianfenchang",emoji:"🌭"},
+  {cat:"chuan", id:"zhunaohua",   name:"秘制猪脑花", price:25, unit:"份", note:"",       img:"zhunaohua",   emoji:"🌶️"},
+  // 青青草原系列
+  {cat:"veg", id:"tudoupian",  name:"土豆片",   price:1,  unit:"串", note:"", img:"tudoupian",  emoji:"🥔"},
+  {cat:"veg", id:"oupian",     name:"藕片",     price:1,  unit:"串", note:"", img:"oupian",     emoji:"🪷"},
+  {cat:"veg", id:"sanyuegua",  name:"三月瓜",   price:1,  unit:"串", note:"", img:"sanyuegua",  emoji:"🥒"},
+  {cat:"veg", id:"jiuhuang",   name:"韭黄",     price:5,  unit:"把", note:"", img:"jiuhuang",   emoji:"🌿"},
+  {cat:"veg", id:"jinzhengu",  name:"金针菇",   price:2,  unit:"串", note:"", img:"jinzhengu",  emoji:"🍄"},
+  {cat:"veg", id:"bocai",      name:"菠菜",     price:2,  unit:"串", note:"", img:"bocai",      emoji:"🥬"},
+  {cat:"veg", id:"wawacai",    name:"娃娃菜",   price:2,  unit:"串", note:"", img:"wawacai",    emoji:"🥬"},
+  {cat:"veg", id:"xianggu",    name:"蒜蓉香菇", price:3,  unit:"串", note:"", img:"xianggu",    emoji:"🍄"},
+  {cat:"veg", id:"dougan",     name:"豆干",     price:2,  unit:"串", note:"", img:"dougan",     emoji:"🫘"},
+  {cat:"veg", id:"kaoxiangjiao",name:"烤香蕉",  price:5,  unit:"份", note:"", img:"kaoxiangjiao",emoji:"🍌"},
+  {cat:"veg", id:"qiezi",      name:"蒜蓉茄子", price:18, unit:"份", note:"", img:"qiezi",      emoji:"🍆"},
+  {cat:"veg", id:"maodou",     name:"毛豆花生", price:10, unit:"份", note:"", img:"maodou",     emoji:"🥜"},
+  {cat:"veg", id:"huanggua",   name:"芥末黄瓜", price:10, unit:"份", note:"", img:"huanggua",   emoji:"🥒"},
+  // 海鲜系列
+  {cat:"seafood", id:"shenghao",   name:"烤生蚝", price:10, unit:"份", note:"6个", img:"shenghao",   emoji:"🦪"},
+  {cat:"seafood", id:"shanbei",    name:"扇贝",   price:10, unit:"份", note:"4个", img:"shanbei",    emoji:"🦪"},
+  {cat:"seafood", id:"youyu",      name:"鱿鱼",   price:8,  unit:"串", note:"",    img:"youyu",      emoji:"🦑"},
+  {cat:"seafood", id:"jiweixia",   name:"基围虾", price:10, unit:"份", note:"3只", img:"jiweixia",   emoji:"🦐"},
+  {cat:"seafood", id:"xiaohuangyu",name:"小黄鱼", price:10, unit:"份", note:"3条", img:"xiaohuangyu",emoji:"🐟"},
+  // 铁板系列
+  {cat:"tieban", id:"baoxia", name:"臻鲜鲍虾铁板烧", price:35, unit:"份", note:"", img:"baoxia", emoji:"🍤"},
+  {cat:"tieban", id:"jiyu",   name:"铁板鲫鱼",       price:25, unit:"份", note:"", img:"jiyu",   emoji:"🐟"},
+  {cat:"tieban", id:"jidadan",name:"铁板鸡蛋羹",     price:18, unit:"份", note:"", img:"jidadan",emoji:"🍳"},
+  // 锡纸系列
+  {cat:"xizhi", id:"huajia",        name:"锡纸花甲粉丝", price:15, unit:"份", note:"", img:"huajia",        emoji:"🍜"},
+  {cat:"xizhi", id:"xizhiwawacai",  name:"锡纸娃娃菜",   price:12, unit:"份", note:"", img:"xizhiwawacai",  emoji:"🥬"},
+  {cat:"xizhi", id:"xizhijinzhengu",name:"锡纸金针菇",   price:12, unit:"份", note:"", img:"xizhijinzhengu",emoji:"🍄"},
+  {cat:"xizhi", id:"kuanfen",       name:"锡纸宽粉",     price:12, unit:"份", note:"", img:"kuanfen",       emoji:"🍜"},
+  // 酒水系列
+  {cat:"drink", id:"langjiu",    name:"大瓶郎酒",   price:58, unit:"瓶", note:"", img:"langjiu",    emoji:"🍶"},
+  {cat:"drink", id:"xiaolangjiu",name:"小郎酒歪嘴", price:20, unit:"瓶", note:"", img:"xiaolangjiu",emoji:"🍶"},
+  {cat:"drink", id:"meijian",    name:"梅见",       price:38, unit:"瓶", note:"", img:"meijian",    emoji:"🥃"},
+  {cat:"drink", id:"jingniang",  name:"精酿",       price:18, unit:"瓶", note:"", img:"jingniang",  emoji:"🍺"},
+  {cat:"drink", id:"xuehua1",    name:"雪花纯生",   price:10, unit:"瓶", note:"", img:"xuehua1",    emoji:"🍺"},
+  {cat:"drink", id:"xuehua2",    name:"雪花勇闯",   price:8,  unit:"瓶", note:"", img:"xuehua2",    emoji:"🍺"},
+  {cat:"drink", id:"yanjing",    name:"燕京U8",     price:8,  unit:"瓶", note:"", img:"yanjing",    emoji:"🍺"},
+  {cat:"drink", id:"dayao",      name:"大窑",       price:5,  unit:"瓶", note:"", img:"dayao",      emoji:"🥤"},
+  {cat:"drink", id:"weiyi",      name:"小唯怡",     price:5,  unit:"瓶", note:"", img:"weiyi",      emoji:"🥛"},
+  {cat:"drink", id:"wanglaoji",  name:"王老吉",     price:5,  unit:"瓶", note:"", img:"wanglaoji",  emoji:"🥤"},
+  {cat:"drink", id:"sudashui",   name:"苏打水",     price:4,  unit:"瓶", note:"", img:"sudashui",   emoji:"🥤"},
+  {cat:"drink", id:"baisuishan", name:"百岁山",     price:3,  unit:"瓶", note:"", img:"baisuishan", emoji:"💧"},
+  {cat:"drink", id:"xuebi",      name:"雪碧",       price:3,  unit:"瓶", note:"", img:"xuebi",      emoji:"🥤"},
+  {cat:"drink", id:"kele",       name:"可乐",       price:3,  unit:"瓶", note:"", img:"kele",       emoji:"🥤"},
+];
+/* 鲍鱼、三文鱼为预定菜，未列入点单 */
+
+/* ================= 状态 ================= */
+const LS_PRICE="jinye_prices", LS_CART="jinye_cart";
+let priceOverride = JSON.parse(localStorage.getItem(LS_PRICE)||"{}");
+let cart = JSON.parse(localStorage.getItem(LS_CART)||"{}");
+
+const priceOf = it => (priceOverride[it.id]!=null ? priceOverride[it.id] : it.price);
+const $ = s => document.querySelector(s);
+
+/* ================= 渲染 ================= */
+function renderNav(){
+  $("#catNav").innerHTML = CATEGORIES.map((c,i)=>
+    `<button data-cat="${c.id}" class="${i===0?"active":""}">${c.emoji} ${c.name}</button>`).join("");
+  document.querySelectorAll("#catNav button").forEach(b=>{
+    b.onclick=()=>{
+      document.querySelectorAll("#catNav button").forEach(x=>x.classList.remove("active"));
+      b.classList.add("active");
+      const sec=document.getElementById("sec-"+b.dataset.cat);
+      window.scrollTo({top:sec.offsetTop-52,behavior:"smooth"});
+    };
+  });
+}
+
+function renderMenu(){
+  $("#menu").innerHTML = CATEGORIES.map(c=>{
+    const items = MENU.filter(m=>m.cat===c.id);
+    return `<section id="sec-${c.id}">
+      <div class="cat-title">${c.name}</div>
+      <div class="grid">${items.map(cardHTML).join("")}</div>
+    </section>`;
+  }).join("");
+  bindCards();
+}
+
+function cardHTML(it){
+  const q = cart[it.id]||0;
+  return `<div class="card" data-id="${it.id}">
+    <div class="info">
+      <div class="name">${it.name}</div>
+      ${it.note?`<div class="note">${it.note}</div>`:""}
+      <div class="row">
+        <span class="price" title="点击修改价格">¥<span class="pv">${priceOf(it)}</span><small>/${it.unit}</small></span>
+        <div class="stepper">
+          <button class="minus" ${q===0?"disabled":""}>−</button>
+          <span class="qty">${q}</span>
+          <button class="plus">+</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindCards(){
+  document.querySelectorAll(".card").forEach(card=>{
+    const id = card.dataset.id;
+    const it = MENU.find(m=>m.id===id);
+    card.querySelector(".plus").onclick = ()=>{ setQty(id,(cart[id]||0)+1); };
+    card.querySelector(".minus").onclick = ()=>{ setQty(id,Math.max(0,(cart[id]||0)-1)); };
+    // 点击价格 -> 修改
+    const priceEl = card.querySelector(".price");
+    priceEl.onclick = ()=>{
+      if(priceEl.querySelector("input")) return;
+      const cur = priceOf(it);
+      priceEl.innerHTML = `¥<input type="number" min="0" step="0.5" value="${cur}"><small>/${it.unit}</small>`;
+      const input = priceEl.querySelector("input");
+      input.focus(); input.select();
+      const save = ()=>{
+        let v = parseFloat(input.value);
+        if(isNaN(v)||v<0) v = it.price;
+        v = Math.round(v*100)/100;
+        if(v===it.price) delete priceOverride[id]; else priceOverride[id]=v;
+        localStorage.setItem(LS_PRICE,JSON.stringify(priceOverride));
+        refreshCard(id); updateBar();
+        toast(v===it.price?`「${it.name}」恢复默认价 ¥${v}`:`「${it.name}」价格已改为 ¥${v}`);
+      };
+      input.onblur = save;
+      input.onkeydown = e=>{ if(e.key==="Enter") input.blur(); if(e.key==="Escape"){input.onblur=null;refreshCard(id);} };
+      input.onclick = e=>e.stopPropagation();
+    };
+  });
+}
+
+function refreshCard(id){
+  const card = document.querySelector(`.card[data-id="${id}"]`);
+  if(!card) return;
+  const it = MENU.find(m=>m.id===id);
+  const q = cart[id]||0;
+  card.querySelector(".qty").textContent = q;
+  card.querySelector(".minus").disabled = q===0;
+  if(!card.querySelector(".price input"))
+    card.querySelector(".pv").textContent = priceOf(it);
+}
+
+/* ================= 购物车 ================= */
+function setQty(id,q){
+  if(q===0) delete cart[id]; else cart[id]=q;
+  localStorage.setItem(LS_CART,JSON.stringify(cart));
+  refreshCard(id); updateBar();
+}
+
+function cartItems(){ return MENU.filter(m=>cart[m.id]>0); }
+
+function updateBar(){
+  const items = cartItems();
+  const total = items.reduce((s,m)=>s+priceOf(m)*cart[m.id],0);
+  const count = items.reduce((s,m)=>s+cart[m.id],0);
+  $("#totalPrice").textContent = "¥"+(Math.round(total*100)/100);
+  $("#totalCount").textContent = count? `已选 ${count} 件 / ${items.length} 种` : "还未选择商品";
+  $("#genBtn").disabled = count===0;
+}
+
+/* ================= 生成点单文字 ================= */
+function buildOrderText(){
+  const items = cartItems();
+  return items.map(m=>`${m.name} ${cart[m.id]}${m.unit}`).join("，");
+}
+
+$("#genBtn").onclick = ()=>{
+  const items = cartItems();
+  const total = Math.round(items.reduce((s,m)=>s+priceOf(m)*cart[m.id],0)*100)/100;
+  $("#orderText").textContent = buildOrderText();
+  $("#sheetTotal").textContent = `合计：¥${total} 元（仅供参考，不会复制进文字）`;
+  $("#mask").classList.add("show");
+};
+$("#closeSheet").onclick = ()=> $("#mask").classList.remove("show");
+$("#mask").onclick = e=>{ if(e.target.id==="mask") $("#mask").classList.remove("show"); };
+
+$("#copyBtn").onclick = async ()=>{
+  const text = $("#orderText").textContent;
+  try{
+    await navigator.clipboard.writeText(text);
+    toast("已复制，去微信群粘贴吧 ✅");
+  }catch(e){
+    // 兜底：选中文本让用户手动复制
+    const range=document.createRange();
+    range.selectNodeContents($("#orderText"));
+    const sel=getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    try{ document.execCommand("copy"); toast("已复制，去微信群粘贴吧 ✅"); }
+    catch(_){ toast("复制失败，请长按文字手动复制"); }
+  }
+};
+
+$("#clearBtn").onclick = $("#clearCart").onclick = ()=>{
+  if(!Object.keys(cart).length) return;
+  cart={}; localStorage.setItem(LS_CART,"{}");
+  renderMenu(); updateBar(); toast("已清空");
+};
+
+$("#resetPrices").onclick = ()=>{
+  priceOverride={}; localStorage.setItem(LS_PRICE,"{}");
+  renderMenu(); updateBar(); toast("已恢复默认价格");
+};
+
+let toastTimer;
+function toast(msg){
+  const t=$("#toast"); t.textContent=msg; t.style.display="block";
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.style.display="none",1800);
+}
+
+/* 滚动时高亮当前分类 */
+window.addEventListener("scroll",()=>{
+  const secs=[...document.querySelectorAll("section")];
+  let cur=secs[0];
+  for(const s of secs){ if(s.getBoundingClientRect().top<=70) cur=s; }
+  const id=cur.id.replace("sec-","");
+  document.querySelectorAll("#catNav button").forEach(b=>{
+    b.classList.toggle("active",b.dataset.cat===id);
+    if(b.dataset.cat===id) b.scrollIntoView({inline:"center",block:"nearest"});
+  });
+},{passive:true});
+
+renderNav(); renderMenu(); updateBar();
+</script>
+</body>
+</html>
